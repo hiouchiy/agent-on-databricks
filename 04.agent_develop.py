@@ -60,7 +60,7 @@
 %pip install unitycatalog-langchain[databricks]
 
 # Databricks LangChain統合パッケージのインストール
-%pip install databricks-langchain
+%pip install databricks-langchain databricks-agents uv
 
 # Pythonを再起動して新しいライブラリを読み込む
 dbutils.library.restartPython()
@@ -118,15 +118,15 @@ print("✓ MLflow自動ロギングが有効になりました")
 # COMMAND ----------
 
 from databricks_langchain import ChatDatabricks
+import random
 
 # 使用するLLMのエンドポイント名
 # ※環境に合わせて変更してください
-LLM_ENDPOINT_NAME = "databricks-gpt-oss-20b"  # または "databricks-llama-4-maverick"
+LLM_ENDPOINT_NAME = random.choice(["databricks-gpt-oss-20b", "databricks-llama-4-maverick", "databricks-qwen3-next-80b-a3b-instruct"])
+print(LLM_ENDPOINT_NAME + " が選択されました。")
 
 # LLMモデルを初期化
-model = ChatDatabricks(
-    endpoint=LLM_ENDPOINT_NAME
-)
+model = ChatDatabricks(endpoint=LLM_ENDPOINT_NAME)
 
 print(f"✓ LLMモデルを初期化しました: {LLM_ENDPOINT_NAME}")
 
@@ -511,6 +511,293 @@ res = agent.invoke({
 
 # 結果をMarkdown形式で表示
 display(Markdown(res["messages"][-1].content))
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## ステップ11: 評価用のラッパー関数を定義
+# MAGIC
+# MAGIC ### ラッパー関数の役割
+# MAGIC
+# MAGIC MLflowの評価フレームワークが期待する形式に、エージェントの入出力を
+# MAGIC 変換する関数です。
+# MAGIC
+# MAGIC ### @mlflow.traceデコレーター
+# MAGIC
+# MAGIC このデコレーターを使うと、関数の実行がMLflowに自動的に記録されます。
+# MAGIC 以下の情報がトレースされます：
+# MAGIC
+# MAGIC - 入力（質問）
+# MAGIC - 出力（回答）
+# MAGIC - 実行時間
+# MAGIC - 使用したツール
+# MAGIC - エラー情報（もしあれば）
+
+# COMMAND ----------
+
+import mlflow
+
+@mlflow.trace
+def predict_wrapper(query: str) -> str:
+    """
+    エージェントに質問を送信し、回答を返す関数
+    
+    Args:
+        query: ユーザーからの質問（文字列）
+    
+    Returns:
+        エージェントの回答（文字列）
+    """
+    # エージェントに質問を送信
+    res = agent.invoke({
+        "messages": [
+            {"role": "user", "content": query}
+        ]
+    })
+    
+    # 最後のメッセージ（エージェントの回答）を返す
+    return res["messages"][-1].content
+
+print("✅ 評価用ラッパー関数を定義しました")
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## ステップ12: 評価データセットの作成
+# MAGIC
+# MAGIC ### 評価データセットとは
+# MAGIC
+# MAGIC エージェントをテストするための質問と期待される回答のセットです。
+# MAGIC 各テストケースには以下が含まれます：
+# MAGIC
+# MAGIC - **inputs**: テスト質問
+# MAGIC - **expectations**: 期待される回答や事実
+# MAGIC
+# MAGIC ### 2種類の期待値
+# MAGIC
+# MAGIC 1. **expected_response**: 完全な回答文を指定
+# MAGIC    - 回答が期待通りの内容かを評価
+# MAGIC    
+# MAGIC 2. **expected_facts**: 含まれるべき事実のリスト
+# MAGIC    - 回答に特定の情報が含まれているかを評価
+# MAGIC    - 複数の事実を個別にチェックできる
+# MAGIC
+# MAGIC ### データセットの設計ポイント
+# MAGIC
+# MAGIC - **多様性**: さまざまな種類の質問を含める
+# MAGIC - **難易度**: 簡単な質問から複雑な質問まで
+# MAGIC - **実用性**: 実際のユースケースに基づく質問
+# MAGIC
+# MAGIC ### 合成データの生成
+# MAGIC
+# MAGIC 評価データセットは手動で作成することもできますが、
+# MAGIC [合成的に生成](https://www.databricks.com/jp/blog/streamline-ai-agent-evaluation-with-new-synthetic-data-capabilities)
+# MAGIC することも可能です。
+
+# COMMAND ----------
+
+import pandas as pd
+
+# ========================================
+# 評価データセットの定義
+# ========================================
+
+eval_data = [
+    # ========================================
+    # テストケース1: 基本的な治療方法の質問
+    # ========================================
+    {
+        "inputs": {
+            "query": "乳がんの治療には主にどんな方法がありますか？"
+        },
+        "expectations": {
+            # 期待される完全な回答文
+            "expected_response": "乳がんの治療には主に手術（外科治療）・放射線治療・薬物療法があり、診断されたときから緩和ケア／支持療法を受けることもできます。"
+        }
+    },
+    
+    # ========================================
+    # テストケース2: 複雑な医療知識の質問
+    # ========================================
+    {
+        "inputs": {
+            "query": "食道がんの主な治療法は何ですか？"
+        },
+        "expectations": {
+            # 回答に含まれるべき事実のリスト
+            "expected_facts": [
+                "主な治療法は、内視鏡的切除、手術、放射線治療、薬物療法、化学放射線療法である。",
+                "診断されたときから、緩和ケア／支持療法を受けることができる。"
+            ]
+        }
+    }
+]
+
+# DataFrameに変換して確認
+eval_dataset = pd.DataFrame(eval_data)
+print("✅ 評価データセットを作成しました")
+print(f"   テストケース数: {len(eval_data)}")
+display(eval_dataset)
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## ステップ13: 評価指標（スコアラー）の定義
+# MAGIC
+# MAGIC ### スコアラーとは
+# MAGIC
+# MAGIC エージェントの回答を自動的に評価する「LLMジャッジ」です。
+# MAGIC 別のLLMを使って、回答の品質を客観的にスコア化します。
+# MAGIC
+# MAGIC ### 利用可能なスコアラー
+# MAGIC
+# MAGIC MLflowには多数のスコアラーが用意されています：
+# MAGIC
+# MAGIC 1. **Correctness（正確性）**
+# MAGIC    - 回答が期待される内容と一致しているかを評価
+# MAGIC    - 事実の正確性をチェック
+# MAGIC
+# MAGIC 2. **RelevanceToQuery（関連性）**
+# MAGIC    - 回答が質問に対して適切かを評価
+# MAGIC    - 質問から逸脱していないかをチェック
+# MAGIC
+# MAGIC 3. **RetrievalGroundedness（根拠性）**
+# MAGIC    - 回答が検索結果に基づいているかを評価
+# MAGIC    - 幻覚（Hallucination）の検出
+# MAGIC
+# MAGIC 4. **RetrievalRelevance（検索関連性）**
+# MAGIC    - 検索された文書が質問に関連しているかを評価
+# MAGIC
+# MAGIC 5. **RetrievalSufficiency（検索十分性）**
+# MAGIC    - 検索された文書が回答に十分な情報を含むかを評価
+# MAGIC
+# MAGIC 6. **Safety（安全性）**
+# MAGIC    - 回答に有害な内容が含まれていないかを評価
+# MAGIC    - バイアスや差別的な表現をチェック
+# MAGIC
+# MAGIC ### スコアラーの選択
+# MAGIC
+# MAGIC 今回は、以下の2つのスコアラーを使用します：
+# MAGIC - Correctness: 医療情報の正確性が重要
+# MAGIC - RetrievalSufficiency: 検索が適切に機能しているかを確認
+# MAGIC
+# MAGIC 他のスコアラーはコメントアウトしていますが、
+# MAGIC 必要に応じて有効化できます。
+
+# COMMAND ----------
+
+from mlflow.genai.scorers import (
+    Correctness,
+    Guidelines,
+    RelevanceToQuery,
+    RetrievalGroundedness,
+    RetrievalRelevance,
+    RetrievalSufficiency,
+    Safety,
+)
+import mlflow.genai
+
+# ========================================
+# 評価用スコアラーを定義
+# ========================================
+
+scorers = [
+    Correctness(),              # 正確性を評価
+    # RelevanceToQuery(),       # 質問への関連性を評価（コメントアウト）
+    # RetrievalGroundedness(),  # 検索結果への根拠性を評価（コメントアウト）
+    # RetrievalRelevance(),     # 検索結果の関連性を評価（コメントアウト）
+    RetrievalSufficiency(),     # 検索結果の十分性を評価
+    # Safety(),                 # 安全性を評価（コメントアウト）
+]
+
+print("✅ 評価スコアラーを定義しました")
+print(f"   使用するスコアラー数: {len(scorers)}")
+for scorer in scorers:
+    print(f"   - {scorer.__class__.__name__}")
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## ステップ14: エージェントの評価を実行
+# MAGIC
+# MAGIC ### mlflow.genai.evaluate() とは
+# MAGIC
+# MAGIC MLflowが提供するエージェント評価フレームワークです。
+# MAGIC 以下の処理を自動的に実行します：
+# MAGIC
+# MAGIC 1. **評価データセットの各質問をエージェントに送信**
+# MAGIC    - predict_wrapper関数を使用
+# MAGIC
+# MAGIC 2. **回答を期待値と比較**
+# MAGIC    - 定義したスコアラーを使用
+# MAGIC
+# MAGIC 3. **スコアを計算**
+# MAGIC    - 各スコアラーが0〜1のスコアを出力
+# MAGIC
+# MAGIC 4. **結果をMLflowに記録**
+# MAGIC    - スコア、入力、出力、トレース情報をすべて記録
+# MAGIC
+# MAGIC ### MLflow Run
+# MAGIC
+# MAGIC 評価は、MLflowのRunとして記録されます。
+# MAGIC Run内には以下の情報が含まれます：
+# MAGIC
+# MAGIC - 評価スコア（メトリクス）
+# MAGIC - 各テストケースの詳細
+# MAGIC - エージェントのトレース情報
+# MAGIC - 使用したツールの履歴
+# MAGIC
+# MAGIC ### 評価結果の確認方法
+# MAGIC
+# MAGIC 評価完了後、以下の方法で結果を確認できます：
+# MAGIC
+# MAGIC 1. **MLflow UI**: Databricksの「実験」タブから確認
+# MAGIC 2. **results変数**: このセルで返される結果オブジェクト
+# MAGIC 3. **自動生成されたレポート**: 視覚的なダッシュボード
+
+# COMMAND ----------
+
+print("🚀 評価を実行中...")
+print("   （この処理には数分かかる場合があります）\n")
+
+# MLflow Runを開始
+mlflow.set_experiment(f"/Workspace/Users/{username}/medical_agent_evaluation")
+with mlflow.start_run(run_name="medical_agent_evaluation_v1") as run:
+    # エージェントの評価を実行
+    results = mlflow.genai.evaluate(
+        data=eval_data,              # 評価データセット
+        predict_fn=predict_wrapper,  # 予測関数
+        scorers=scorers,             # スコアラーのリスト
+    )
+    
+    # Run IDを保存（後で参照するため）
+    run_id = run.info.run_id
+
+print("\n✅ 評価が完了しました")
+print(f"   Run ID: {run_id}")
+print("\n💡 MLflow UIで詳細な評価結果を確認できます")
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## ステップ15: 評価結果の確認
+# MAGIC
+# MAGIC 評価結果を表示して、エージェントの性能を確認します。
+
+# COMMAND ----------
+
+# 評価結果のサマリーを表示
+print("📊 評価結果サマリー:")
+print("="*50)
+
+# メトリクスを表示
+if hasattr(results, 'metrics'):
+    for metric_name, metric_value in results.metrics.items():
+        print(f"   {metric_name}: {metric_value:.4f}")
+else:
+    print("   メトリクス情報が利用できません")
+
+print("\n💡 詳細な評価結果はMLflow UIで確認してください")
 
 # COMMAND ----------
 
