@@ -1,44 +1,97 @@
 # Databricks notebook source
 # MAGIC %md
-# MAGIC # AIエージェント評価ハンズオンラボ
+# MAGIC # AIエージェントの評価・登録・デプロイハンズオンラボ
 # MAGIC
 # MAGIC ## このノートブックで学ぶこと
 # MAGIC
-# MAGIC このハンズオンでは、前のノートブック（03.agent_develop）で構築した
-# MAGIC 医療アシスタントエージェントの性能を評価する方法を学びます。
+# MAGIC このハンズオンでは、前のノートブック（04.agent_develop）で構築した
+# MAGIC 医療アシスタントエージェントを、本番環境で使えるようにする方法を学びます。
 # MAGIC
-# MAGIC ### エージェント評価とは？
+# MAGIC 具体的には、以下の3つのフェーズを実施します：
 # MAGIC
-# MAGIC エージェントが期待通りに動作しているかを客観的に測定する作業です。
-# MAGIC 以下のような質問に答えることができます：
+# MAGIC ### フェーズ1: エージェントの評価
+# MAGIC
+# MAGIC エージェントが期待通りに動作しているかを客観的に測定します。
 # MAGIC
 # MAGIC - エージェントは正確な情報を提供しているか？
 # MAGIC - 検索した情報を適切に活用しているか？
 # MAGIC - 回答は質問に対して適切か？
 # MAGIC - 安全性やバイアスの問題はないか？
 # MAGIC
+# MAGIC ### フェーズ2: モデルの登録と管理
+# MAGIC
+# MAGIC エージェントをMLflowモデルとして登録し、Unity Catalogで管理します。
+# MAGIC
+# MAGIC - バージョン管理による変更履歴の追跡
+# MAGIC - リネージによる依存関係の可視化
+# MAGIC - チーム間での共有とアクセス制御
+# MAGIC - 再現可能な環境の確保
+# MAGIC
+# MAGIC ### フェーズ3: 本番環境へのデプロイ
+# MAGIC
+# MAGIC エージェントをModel ServingエンドポイントとしてデプロイしてREST APIで公開します。
+# MAGIC
+# MAGIC - スケーラブルなAPI環境の構築
+# MAGIC - レビューアプリでのチーム共有
+# MAGIC - 本番環境でのテストと監視
+# MAGIC - 外部アプリケーションからの呼び出し
+# MAGIC
 # MAGIC ### このノートブックの流れ
 # MAGIC
+# MAGIC #### 準備フェーズ（ステップ1-6）
 # MAGIC 1. **環境準備**: 必要なライブラリのインストール
-# MAGIC 2. **エージェントの読み込み**: simple_agent.pyからエージェントを読み込む
-# MAGIC 3. **評価データセットの作成**: テスト用の質問と期待される回答を準備
-# MAGIC 4. **評価の実行**: MLflowを使ってエージェントを評価
-# MAGIC 5. **結果の分析**: 評価結果を確認し、改善点を特定
-# MAGIC 6. **モデルの登録とデプロイ**: Unity Catalogへの登録と本番環境へのデプロイ
+# MAGIC 2. **環境設定**: カタログとスキーマの設定
+# MAGIC 3. **環境変数設定**: simple_agent.py用の設定
+# MAGIC 4. **エージェント読み込み**: simple_agent.pyからエージェントを読み込む
+# MAGIC 5. **動作確認**: エージェントが正しく動作するかテスト
+# MAGIC 6. **ワークフロー可視化**: エージェントの内部構造を図で確認
+# MAGIC
+# MAGIC #### フェーズ1: エージェントの評価（ステップ7-10）
+# MAGIC 7. **MLflowモデル登録**: エージェントをMLflowモデルとして登録
+# MAGIC 8. **評価用ラッパー関数定義**: MLflow評価用の関数を作成
+# MAGIC 9. **評価データセット作成**: テスト用の質問と期待される回答を準備
+# MAGIC 10. **スコアラー定義**: 評価指標（Correctness、RetrievalSufficiencyなど）を設定
+# MAGIC 11. **再評価の実行**: 登録したモデルで評価を実行（オプション）
+# MAGIC
+# MAGIC #### フェーズ2: モデルの登録と管理（ステップ12-13）
+# MAGIC 12. **Unity Catalog登録**: モデルをUnity Catalogに登録
+# MAGIC 13. **リネージ確認**: モデルの依存関係を可視化
+# MAGIC
+# MAGIC #### フェーズ3: 本番環境へのデプロイ（ステップ14-15）
+# MAGIC 14. **エージェントデプロイ**: Model Servingエンドポイントとして公開
+# MAGIC 15. **デプロイテスト**: デプロイしたエージェントをREST APIで呼び出し
+# MAGIC
+# MAGIC #### まとめ（ステップ16）
+# MAGIC 16. **振り返りと次のステップ**: 学んだことの整理と今後の展開
 # MAGIC
 # MAGIC ### simple_agent.pyファイルについて
 # MAGIC
 # MAGIC このノートブックは、別ファイル（`simple_agent.py`）に定義されたエージェントを
-# MAGIC 読み込んで評価します。simple_agent.pyには以下が含まれます：
+# MAGIC 読み込んで評価・登録・デプロイします。
 # MAGIC
-# MAGIC - LLMの設定
+# MAGIC #### simple_agent.pyに含まれる内容
+# MAGIC
+# MAGIC - LLMの設定（環境変数から読み込み）
 # MAGIC - ベクトル検索ツールの設定
 # MAGIC - Unity Catalog関数ツールの設定
-# MAGIC - システムプロンプト
+# MAGIC - システムプロンプトの定義
 # MAGIC - エージェントの構築ロジック
 # MAGIC
-# MAGIC この構成により、エージェントのコードと評価コードを分離でき、
-# MAGIC 管理とバージョン管理が容易になります。
+# MAGIC #### この構成のメリット
+# MAGIC
+# MAGIC - **コードの分離**: エージェントのロジックと評価・デプロイコードを分離
+# MAGIC - **再利用性**: 同じエージェントコードを異なる環境で使用可能
+# MAGIC - **バージョン管理**: エージェントの変更履歴を明確に管理
+# MAGIC - **デプロイ容易性**: ファイル単位でモデルとして登録・デプロイ可能
+# MAGIC
+# MAGIC #### 環境変数による設定
+# MAGIC
+# MAGIC simple_agent.pyは以下の環境変数を参照します：
+# MAGIC - `LLM_ENDPOINT_NAME`: 使用するLLMエンドポイント
+# MAGIC - `VS_NAME`: ベクトル検索インデックス名
+# MAGIC - `UC_TOOL_NAMES`: Unity Catalog関数のパターン
+# MAGIC
+# MAGIC これにより、コードを変更せずに異なる環境（開発・本番など）で使用できます。
 
 # COMMAND ----------
 
@@ -221,7 +274,100 @@ except Exception as e:
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## ステップ7: 評価用のラッパー関数を定義
+# MAGIC ---
+# MAGIC # フェーズ1: エージェントの評価
+# MAGIC ---
+# MAGIC
+# MAGIC ## 評価の重要性
+# MAGIC
+# MAGIC 本番環境にデプロイする前に、エージェントの品質を客観的に測定することが重要です。
+# MAGIC
+# MAGIC ### なぜ評価が必要なのか
+# MAGIC
+# MAGIC - **品質保証**: 様々なシナリオで一貫した品質を確保
+# MAGIC - **問題の早期発見**: デプロイ前に不具合を検出
+# MAGIC - **継続的改善**: システムプロンプトやツールの変更による影響を測定
+# MAGIC - **ステークホルダーへの説明**: 数値で信頼性を証明
+# MAGIC
+# MAGIC まずは、エージェントをMLflowモデルとして登録し、評価の準備を整えます。
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## ステップ7: エージェントをMLflowモデルとして登録
+# MAGIC
+# MAGIC ### なぜMLflowに登録するのか
+# MAGIC
+# MAGIC エージェントをMLflowモデルとして登録すると、以下のメリットがあります：
+# MAGIC
+# MAGIC - **バージョン管理**: エージェントの異なるバージョンを管理
+# MAGIC - **再現性**: 同じエージェントを後で再現できる
+# MAGIC - **デプロイ**: Model Servingエンドポイントとしてデプロイ可能
+# MAGIC - **依存関係の管理**: 必要なライブラリやリソースを一緒に保存
+# MAGIC
+# MAGIC ### PyFunc形式とは
+# MAGIC
+# MAGIC PyFunc（Python Function）は、MLflowの標準的なモデル形式です。
+# MAGIC 任意のPythonコードをMLflowモデルとしてパッケージ化できます。
+# MAGIC
+# MAGIC ### simple_agent.pyファイルの登録
+# MAGIC
+# MAGIC `python_model="simple_agent.py"` を指定することで、
+# MAGIC agent.pyファイルの内容がモデルとして登録されます。
+
+# COMMAND ----------
+
+from mlflow.models.resources import DatabricksFunction, DatabricksServingEndpoint, DatabricksVectorSearchIndex
+from unitycatalog.ai.langchain.toolkit import UnityCatalogTool
+import simple_agent
+
+# ========================================
+# モデル登録の準備
+# ========================================
+
+# 入力例の定義（モデルの入力形式を示すサンプル）
+input_example = {
+    "messages": [{
+        "role": "user",
+        "content": "乳がんの治療方法について教えてください"
+    }]
+}
+
+# リソースの定義（モデルが依存するファイルやディレクトリ）
+# agent.pyが参照する可能性のあるリソースをリストアップ
+resources = [DatabricksServingEndpoint(endpoint_name=simple_agent.LLM_ENDPOINT_NAME),
+             DatabricksVectorSearchIndex(index_name=simple_agent.VS_NAME),
+             DatabricksFunction(function_name=f"{catalog_name}.{user_schema_name}.get_patient_data"),
+             DatabricksFunction(function_name=f"{catalog_name}.{user_schema_name}.predict_cancer"),
+             DatabricksServingEndpoint(endpoint_name="databricks-gte-large-en")]
+
+# ========================================
+# MLflowモデルとしてログに記録
+# ========================================
+
+print("📦 エージェントをMLflowモデルとして登録中...")
+
+with mlflow.start_run(run_name="medical_agent_model_v1") as run:
+    logged_agent_info = mlflow.langchain.log_model(
+        name="agent",           # モデルの保存先（Run内のパス）
+        lc_model="simple_agent.py",          # エージェントのコードファイル
+        input_example=input_example,      # 入力例
+        resources=resources,            # 依存リソース（必要に応じて有効化）
+        extra_pip_requirements=[          # 追加のPython依存パッケージ
+            "databricks-connect"
+        ]
+    )
+    
+    model_run_id = run.info.run_id
+
+print(f"\n✅ モデルを登録しました")
+print(f"   Run ID: {model_run_id}")
+print(f"   Model URI: {logged_agent_info.model_uri}")
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## ステップ8: 評価用のラッパー関数を定義
 # MAGIC
 # MAGIC ### ラッパー関数の役割
 # MAGIC
@@ -270,7 +416,7 @@ print("✅ 評価用ラッパー関数を定義しました")
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## ステップ8: 評価データセットの作成
+# MAGIC ## ステップ9: 評価データセットの作成
 # MAGIC
 # MAGIC ### 評価データセットとは
 # MAGIC
@@ -349,7 +495,7 @@ display(eval_dataset)
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## ステップ9: 評価指標（スコアラー）の定義
+# MAGIC ## ステップ10: 評価指標（スコアラー）の定義
 # MAGIC
 # MAGIC ### スコアラーとは
 # MAGIC
@@ -425,172 +571,16 @@ for scorer in scorers:
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## ステップ10: エージェントの評価を実行
+# MAGIC ## ステップ11: 登録したモデルで評価（オプション）
 # MAGIC
-# MAGIC ### mlflow.genai.evaluate() とは
-# MAGIC
-# MAGIC MLflowが提供するエージェント評価フレームワークです。
-# MAGIC 以下の処理を自動的に実行します：
-# MAGIC
-# MAGIC 1. **評価データセットの各質問をエージェントに送信**
-# MAGIC    - predict_wrapper関数を使用
-# MAGIC
-# MAGIC 2. **回答を期待値と比較**
-# MAGIC    - 定義したスコアラーを使用
-# MAGIC
-# MAGIC 3. **スコアを計算**
-# MAGIC    - 各スコアラーが0〜1のスコアを出力
-# MAGIC
-# MAGIC 4. **結果をMLflowに記録**
-# MAGIC    - スコア、入力、出力、トレース情報をすべて記録
-# MAGIC
-# MAGIC ### MLflow Run
-# MAGIC
-# MAGIC 評価は、MLflowのRunとして記録されます。
-# MAGIC Run内には以下の情報が含まれます：
-# MAGIC
-# MAGIC - 評価スコア（メトリクス）
-# MAGIC - 各テストケースの詳細
-# MAGIC - エージェントのトレース情報
-# MAGIC - 使用したツールの履歴
-# MAGIC
-# MAGIC ### 評価結果の確認方法
-# MAGIC
-# MAGIC 評価完了後、以下の方法で結果を確認できます：
-# MAGIC
-# MAGIC 1. **MLflow UI**: Databricksの「実験」タブから確認
-# MAGIC 2. **results変数**: このセルで返される結果オブジェクト
-# MAGIC 3. **自動生成されたレポート**: 視覚的なダッシュボード
-
-# COMMAND ----------
-
-print("🚀 評価を実行中...")
-print("   （この処理には数分かかる場合があります）\n")
-
-# MLflow Runを開始
-with mlflow.start_run(run_name="medical_agent_evaluation_v1") as run:
-    # エージェントの評価を実行
-    results = mlflow.genai.evaluate(
-        data=eval_data,              # 評価データセット
-        predict_fn=predict_wrapper,  # 予測関数
-        scorers=scorers,             # スコアラーのリスト
-    )
-    
-    # Run IDを保存（後で参照するため）
-    run_id = run.info.run_id
-
-print("\n✅ 評価が完了しました")
-print(f"   Run ID: {run_id}")
-print("\n💡 MLflow UIで詳細な評価結果を確認できます")
-
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC ## ステップ11: 評価結果の確認
-# MAGIC
-# MAGIC 評価結果を表示して、エージェントの性能を確認します。
-
-# COMMAND ----------
-
-# 評価結果のサマリーを表示
-print("📊 評価結果サマリー:")
-print("="*50)
-
-# メトリクスを表示
-if hasattr(results, 'metrics'):
-    for metric_name, metric_value in results.metrics.items():
-        print(f"   {metric_name}: {metric_value:.4f}")
-else:
-    print("   メトリクス情報が利用できません")
-
-print("\n💡 詳細な評価結果はMLflow UIで確認してください")
-
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC ## ステップ12: エージェントをMLflowモデルとして登録
-# MAGIC
-# MAGIC ### なぜMLflowに登録するのか
-# MAGIC
-# MAGIC エージェントをMLflowモデルとして登録すると、以下のメリットがあります：
-# MAGIC
-# MAGIC - **バージョン管理**: エージェントの異なるバージョンを管理
-# MAGIC - **再現性**: 同じエージェントを後で再現できる
-# MAGIC - **デプロイ**: Model Servingエンドポイントとしてデプロイ可能
-# MAGIC - **依存関係の管理**: 必要なライブラリやリソースを一緒に保存
-# MAGIC
-# MAGIC ### PyFunc形式とは
-# MAGIC
-# MAGIC PyFunc（Python Function）は、MLflowの標準的なモデル形式です。
-# MAGIC 任意のPythonコードをMLflowモデルとしてパッケージ化できます。
-# MAGIC
-# MAGIC ### simple_agent.pyファイルの登録
-# MAGIC
-# MAGIC `python_model="simple_agent.py"` を指定することで、
-# MAGIC agent.pyファイルの内容がモデルとして登録されます。
-
-# COMMAND ----------
-
-from mlflow.models.resources import DatabricksFunction, DatabricksServingEndpoint, DatabricksVectorSearchIndex
-from unitycatalog.ai.langchain.toolkit import UnityCatalogTool
-import simple_agent
-
-# ========================================
-# モデル登録の準備
-# ========================================
-
-# 入力例の定義（モデルの入力形式を示すサンプル）
-input_example = {
-    "messages": [{
-        "role": "user",
-        "content": "乳がんの治療方法について教えてください"
-    }]
-}
-
-# リソースの定義（モデルが依存するファイルやディレクトリ）
-# agent.pyが参照する可能性のあるリソースをリストアップ
-resources = [DatabricksServingEndpoint(endpoint_name=simple_agent.LLM_ENDPOINT_NAME),
-             DatabricksVectorSearchIndex(index_name=simple_agent.VS_NAME),
-             DatabricksFunction(function_name=f"{catalog_name}.{user_schema_name}.get_patient_data"),
-             DatabricksFunction(function_name=f"{catalog_name}.{user_schema_name}.predict_cancer"),
-             DatabricksServingEndpoint(endpoint_name="databricks-gte-large-en")]
-
-# ========================================
-# MLflowモデルとしてログに記録
-# ========================================
-
-print("📦 エージェントをMLflowモデルとして登録中...")
-
-with mlflow.start_run(run_name="medical_agent_model_v1") as run:
-    logged_agent_info = mlflow.langchain.log_model(
-        name="agent",           # モデルの保存先（Run内のパス）
-        lc_model="simple_agent.py",          # エージェントのコードファイル
-        input_example=input_example,      # 入力例
-        resources=resources,            # 依存リソース（必要に応じて有効化）
-        extra_pip_requirements=[          # 追加のPython依存パッケージ
-            "databricks-connect"
-        ]
-    )
-    
-    model_run_id = run.info.run_id
-
-print(f"\n✅ モデルを登録しました")
-print(f"   Run ID: {model_run_id}")
-print(f"   Model URI: {logged_agent_info.model_uri}")
-
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC ## ステップ13: 登録したモデルで再評価（オプション）
-# MAGIC
-# MAGIC ### なぜ再評価するのか
+# MAGIC ### なぜ評価するのか
 # MAGIC
 # MAGIC 登録したMLflowモデルが正しく動作するか確認するため、
 # MAGIC 再度評価を実行します。
 # MAGIC
 # MAGIC ### 最初の評価との違い
 # MAGIC
-# MAGIC - **最初の評価**: agent.pyから直接読み込んだAGENTオブジェクトを評価
+# MAGIC - **最初の評価**: ノートブック上のコードを直接実行して評価
 # MAGIC - **再評価**: MLflowに登録されたモデルを読み込んで評価
 # MAGIC
 # MAGIC これにより、モデルの登録とロードが正しく機能しているか確認できます。
@@ -627,10 +617,7 @@ def predict_wrapper_from_model(query: str) -> str:
     """
     # チャット形式モデル用の入力を整形
     model_input = {
-        "messages": [{
-            "role": "user", 
-            "content": query
-        }]
+        "messages": [{"role": "user", "content": query}]
     }
     
     # モデルで予測を実行
@@ -642,10 +629,10 @@ def predict_wrapper_from_model(query: str) -> str:
 # COMMAND ----------
 
 # ========================================
-# 再評価を実行
+# 評価を実行
 # ========================================
 
-print("\n🚀 登録したモデルで再評価を実行中...")
+print("\n🚀 登録したモデルで評価を実行中...")
 print("   （この処理には数分かかる場合があります）\n")
 
 with mlflow.start_run(run_name="medical_agent_evaluation_v2_from_model") as run:
@@ -657,14 +644,34 @@ with mlflow.start_run(run_name="medical_agent_evaluation_v2_from_model") as run:
     
     reeval_run_id = run.info.run_id
 
-print("\n✅ 再評価が完了しました")
+print("\n✅ 評価が完了しました")
 print(f"   Run ID: {reeval_run_id}")
 print("\n💡 最初の評価と比較して、結果が一致していることを確認してください")
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## ステップ14: Unity Catalogへのモデル登録
+# MAGIC ---
+# MAGIC # フェーズ2: モデルの登録と管理
+# MAGIC ---
+# MAGIC
+# MAGIC ## Unity Catalogによるモデル管理
+# MAGIC
+# MAGIC 評価が完了したエージェントをUnity Catalogに登録することで、
+# MAGIC 企業レベルのガバナンスと管理機能を活用できます。
+# MAGIC
+# MAGIC ### Unity Catalog登録のメリット
+# MAGIC
+# MAGIC - **中央管理**: すべてのモデルを一元管理
+# MAGIC - **アクセス制御**: 細かい権限設定で安全性を確保
+# MAGIC - **リネージ追跡**: データやツールとの依存関係を可視化
+# MAGIC - **共有と協業**: チーム間でモデルを安全に共有
+# MAGIC - **監査証跡**: 変更履歴を自動的に記録
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## ステップ12: Unity Catalogへのモデル登録
 # MAGIC
 # MAGIC ### Unity Catalogとは
 # MAGIC
@@ -716,7 +723,7 @@ print(f"   バージョン: {uc_registered_model_info.version}")
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## ステップ15: モデルのリネージを確認
+# MAGIC ## ステップ13: モデルのリネージを確認
 # MAGIC
 # MAGIC ### リネージとは
 # MAGIC
@@ -758,7 +765,32 @@ print("\n💡 リンク先で「依存関係」タブを確認してください
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## ステップ16: エージェントのデプロイ
+# MAGIC ---
+# MAGIC # フェーズ3: 本番環境へのデプロイ
+# MAGIC ---
+# MAGIC
+# MAGIC ## Model Servingによる本番化
+# MAGIC
+# MAGIC Unity Catalogに登録したエージェントを、REST APIとして公開します。
+# MAGIC これにより、外部アプリケーションから呼び出せるようになります。
+# MAGIC
+# MAGIC ### Model Servingの特徴
+# MAGIC
+# MAGIC - **スケーラビリティ**: 負荷に応じて自動的にスケール
+# MAGIC - **高可用性**: 99.9%のSLA保証
+# MAGIC - **低レイテンシ**: 高速なレスポンス
+# MAGIC - **監視機能**: リアルタイムでパフォーマンスを追跡
+# MAGIC - **A/Bテスト**: 複数のモデルバージョンを並行運用
+# MAGIC
+# MAGIC ### レビューアプリ
+# MAGIC
+# MAGIC デプロイと同時に、チームメンバーがブラウザで簡単にテストできる
+# MAGIC レビューアプリも自動的に作成されます。
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## ステップ14: エージェントのデプロイ
 # MAGIC
 # MAGIC ### Model Servingとは
 # MAGIC
@@ -825,7 +857,7 @@ print(f"   レビューアプリURL: {deployment_info.review_app_url}")
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## ステップ17: デプロイしたエージェントのテスト
+# MAGIC ## ステップ15: デプロイしたエージェントのテスト
 # MAGIC
 # MAGIC デプロイが成功したら、実際にAPIを呼び出してテストします。
 
@@ -889,57 +921,105 @@ else:
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## まとめ：エージェント評価とデプロイの振り返り
+# MAGIC ## まとめ：エージェント評価・登録・デプロイの振り返り
 # MAGIC
 # MAGIC ### 学んだこと
 # MAGIC
-# MAGIC このハンズオンで、以下のスキルを習得しました：
+# MAGIC このハンズオンで、AIエージェントを本番環境で使えるようにする
+# MAGIC 完全なプロセスを習得しました：
 # MAGIC
-# MAGIC #### 1. エージェントの評価
-# MAGIC - 評価データセットの作成方法
-# MAGIC - MLflowを使った自動評価
-# MAGIC - LLMジャッジによるスコアリング
-# MAGIC - 評価結果の分析と改善
+# MAGIC #### フェーズ1: エージェントの評価
+# MAGIC - ✅ 評価データセットの作成方法
+# MAGIC - ✅ MLflowを使った自動評価の実装
+# MAGIC - ✅ LLMジャッジによるスコアリング
+# MAGIC - ✅ Correctness（正確性）とRetrievalSufficiency（検索十分性）の測定
+# MAGIC - ✅ 評価結果の分析と改善点の特定
 # MAGIC
-# MAGIC #### 2. モデル管理
-# MAGIC - MLflowへのモデル登録
-# MAGIC - Unity Catalogでの一元管理
-# MAGIC - モデルのバージョン管理
-# MAGIC - リネージの追跡
+# MAGIC #### フェーズ2: モデルの登録と管理
+# MAGIC - ✅ MLflowモデルとしての登録方法
+# MAGIC - ✅ Unity Catalogでの一元管理
+# MAGIC - ✅ モデルのバージョン管理
+# MAGIC - ✅ リネージによる依存関係の可視化
+# MAGIC - ✅ アクセス制御とガバナンス
 # MAGIC
-# MAGIC #### 3. 本番環境へのデプロイ
-# MAGIC - Model Servingエンドポイントの作成
-# MAGIC - 環境変数の設定
-# MAGIC - レビューアプリの活用
-# MAGIC - デプロイしたエージェントのテスト
+# MAGIC #### フェーズ3: 本番環境へのデプロイ
+# MAGIC - ✅ Model Servingエンドポイントの作成
+# MAGIC - ✅ 環境変数の適切な設定
+# MAGIC - ✅ レビューアプリの活用方法
+# MAGIC - ✅ REST APIを通じたエージェントの呼び出し
+# MAGIC - ✅ デプロイ後のテストと検証
+# MAGIC
+# MAGIC ### AIエージェント開発の全体像
+# MAGIC
+# MAGIC 今回のハンズオンシリーズ（01〜05）で、以下の完全なライフサイクルを学びました：
+# MAGIC
+# MAGIC 1. **01. データ準備**: PDFからベクトル検索用データを作成
+# MAGIC 2. **02. ツール準備**: Unity Catalog関数の作成
+# MAGIC 3. **03. ReACT理解**: ReACTエージェントの基本動作を理解
+# MAGIC 4. **04. エージェント開発**: LangGraphを使った実用的なエージェント構築
+# MAGIC 5. **05. 評価・登録・デプロイ**: 本番環境への展開 ← 今ここ
+# MAGIC
+# MAGIC ### 本番運用に向けて
+# MAGIC
+# MAGIC デプロイが完了したら、以下の点に注意して運用してください：
+# MAGIC
+# MAGIC #### 継続的な監視
+# MAGIC - エンドポイントのレスポンスタイムを監視
+# MAGIC - エラー率をトラッキング
+# MAGIC - 使用量とコストを管理
+# MAGIC - ユーザーフィードバックを収集
+# MAGIC
+# MAGIC #### 継続的な改善
+# MAGIC - 定期的な再評価の実施
+# MAGIC - 評価データセットの拡充
+# MAGIC - システムプロンプトの最適化
+# MAGIC - 新しいツールの追加
+# MAGIC
+# MAGIC #### バージョン管理
+# MAGIC - 改善版を新しいバージョンとして登録
+# MAGIC - A/Bテストで性能を比較
+# MAGIC - リグレッション防止のための評価
+# MAGIC - ロールバック計画の準備
 # MAGIC
 # MAGIC ### 次のステップ
 # MAGIC
-# MAGIC エージェントをさらに改善するには：
+# MAGIC エージェントをさらに改善し、本格的に運用するには：
 # MAGIC
-# MAGIC 1. **評価データセットの拡充**
-# MAGIC    - より多様なテストケースを追加
-# MAGIC    - エッジケースのテスト
-# MAGIC    - 実際のユーザーフィードバックを反映
+# MAGIC #### 1. 評価の強化
+# MAGIC - 評価データセットの拡充（より多様なシナリオ）
+# MAGIC - 追加スコアラーの有効化（Safety、RelevanceToQueryなど）
+# MAGIC - カスタムスコアラーの作成（業務固有の評価基準）
+# MAGIC - [合成データ生成](https://www.databricks.com/jp/blog/streamline-ai-agent-evaluation-with-new-synthetic-data-capabilities)で大規模評価
 # MAGIC
-# MAGIC 2. **スコアラーの調整**
-# MAGIC    - 追加のスコアラーを有効化
-# MAGIC    - カスタムスコアラーの作成
-# MAGIC    - スコアの閾値を設定
+# MAGIC #### 2. 監視とモニタリング
+# MAGIC - [MLflowモニタリング](https://docs.databricks.com/aws/ja/mlflow3/genai/eval-monitor/)の設定
+# MAGIC - ダッシュボードでの可視化
+# MAGIC - アラート設定（エラー率、レスポンスタイム）
+# MAGIC - ユーザーフィードバック収集システムの構築
 # MAGIC
-# MAGIC 3. **システムプロンプトの最適化**
-# MAGIC    - 評価結果を基に改善
-# MAGIC    - A/Bテストで比較
+# MAGIC #### 3. システムプロンプトの最適化
+# MAGIC - 評価結果を基に改善
+# MAGIC - A/Bテストで効果を検証
+# MAGIC - Few-shot例の追加
+# MAGIC - Chain-of-Thought プロンプティングの導入
 # MAGIC
-# MAGIC 4. **継続的な監視と改善**
-# MAGIC    - [MLflowモニタリング](https://docs.databricks.com/aws/ja/mlflow3/genai/eval-monitor/)の設定
-# MAGIC    - 定期的な再評価の実施
-# MAGIC    - ユーザーフィードバックの収集
+# MAGIC #### 4. アプリケーション統合
+# MAGIC - [Databricks Apps](https://docs.databricks.com/aws/ja/dev-tools/databricks-apps/get-started)でチャットUIを構築
+# MAGIC - 既存の業務アプリケーションに組み込み
+# MAGIC - Slackやチャットツールとの連携
+# MAGIC - モバイルアプリからの呼び出し
 # MAGIC
-# MAGIC 5. **アプリケーション統合**
-# MAGIC    - [Databricks Apps](https://docs.databricks.com/aws/ja/dev-tools/databricks-apps/get-started)との連携
-# MAGIC    - 外部アプリケーションからの呼び出し
-# MAGIC    - チャットボットUIの構築
+# MAGIC #### 5. スケーリングと最適化
+# MAGIC - エンドポイントのスケーリング設定の調整
+# MAGIC - キャッシュ戦略の導入
+# MAGIC - コスト最適化（モデルサイズ、インスタンスタイプ）
+# MAGIC - マルチリージョンデプロイ
+# MAGIC
+# MAGIC #### 6. ガバナンスとセキュリティ
+# MAGIC - アクセス制御の強化
+# MAGIC - データプライバシーの確保
+# MAGIC - 監査ログの活用
+# MAGIC - コンプライアンス要件への対応
 
 # COMMAND ----------
 
