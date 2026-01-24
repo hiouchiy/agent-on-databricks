@@ -4,28 +4,38 @@
 # MAGIC
 # MAGIC ## このノートブックで行うこと
 # MAGIC
-# MAGIC このノートブックでは、PDFファイルから情報を取り出して、AIで検索できる形式に変換します。
-# MAGIC 具体的には以下の5つのステップを実行します：
+# MAGIC このノートブックでは、PDFファイルから情報を取り出してAIで検索できる形式に変換し、
+# MAGIC さらに患者データも準備します。具体的には以下のステップを実行します：
 # MAGIC
-# MAGIC 1. **PDFファイルの読み込み**  
+# MAGIC ### PDF処理とベクトル検索の準備
+# MAGIC
+# MAGIC 1. **PDFファイルの読み込み**
 # MAGIC    `data/` フォルダにあるPDFファイルを取得します
 # MAGIC
-# MAGIC 2. **テキストの抽出**  
+# MAGIC 2. **テキストの抽出**
 # MAGIC    PDFの各ページから文字情報を取り出します
 # MAGIC
-# MAGIC 3. **チャンク化（分割）**  
+# MAGIC 3. **チャンク化（分割）**
 # MAGIC    長い文章を適切な長さに分割します（AIが処理しやすいサイズにするため）
 # MAGIC
-# MAGIC 4. **メタ情報の付与**  
+# MAGIC 4. **メタ情報の付与**
 # MAGIC    各チャンクに「どのPDFの何ページ目か」といった情報を追加します
 # MAGIC
-# MAGIC 5. **Deltaテーブルへの保存**  
+# MAGIC 5. **Deltaテーブルへの保存**
 # MAGIC    処理したデータをDatabricksのテーブルに保存し、後でベクトル検索できるようにします
+# MAGIC
+# MAGIC 6. **ベクトル検索インデックスの作成**
+# MAGIC    保存したデータから検索用のインデックスを構築します
+# MAGIC
+# MAGIC ### 患者データの準備
+# MAGIC
+# MAGIC 7. **患者特徴量データの作成**
+# MAGIC    乳がん患者の特徴量データ（30種類の測定値）をテーブルに保存します
 # MAGIC
 # MAGIC ## なぜこの方法を使うのか
 # MAGIC
-# MAGIC この方法を使うと、PDFの内容を細かく制御しながら処理できます。
-# MAGIC 自動処理ツールに頼らず、自分で処理の流れを管理できるため、
+# MAGIC この方法を使うと、医療文書（PDFマニュアル）の内容検索と患者データを組み合わせた
+# MAGIC AIエージェントシステムを構築できます。PDFの内容を細かく制御しながら処理できるため、
 # MAGIC 問題が起きたときに対処しやすくなります。
 
 # COMMAND ----------
@@ -59,6 +69,7 @@
 # MAGIC
 # MAGIC - **CATALOG**: データベースの最上位の分類（例：会社名や部門名）
 # MAGIC - **SCHEMA**: データベース内のグループ（例：プロジェクト名）
+# MAGIC - **PRED_TABLE**: 患者の予測結果を保存するテーブル（後続処理で使用）
 # MAGIC - **VOLUME**: ファイルを保存する場所の名前
 # MAGIC - **EMBEDDING_MODEL_ENDPOINT**: テキストをベクトル（数値の配列）に変換するAIモデル
 # MAGIC - **VECTOR_SEARCH_ENDPOINT**: ベクトル検索を実行するサービスの名前
@@ -615,9 +626,39 @@ except Exception as e:
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## ステップ11: テーブルデータを作成する
+# MAGIC ## ステップ11: 患者特徴量データを作成する
 # MAGIC
-# MAGIC 乳がんに関する患者ごとの特徴量データのテーブルを作成する
+# MAGIC ### このステップの目的
+# MAGIC
+# MAGIC 乳がん患者の特徴量データテーブルを作成します。
+# MAGIC このデータは、PDFマニュアルの情報と組み合わせて、
+# MAGIC 患者ごとに最適な治療法を提案するAIエージェントで使用されます。
+# MAGIC
+# MAGIC ### データの内容
+# MAGIC
+# MAGIC - **データソース**: scikit-learnの乳がんデータセット（Wisconsin Breast Cancer Dataset）
+# MAGIC - **特徴量**: 細胞の測定値30種類（平均半径、テクスチャ、周囲長、面積など）
+# MAGIC - **患者数**: 200名分のデータを生成
+# MAGIC
+# MAGIC ### 特徴量の例
+# MAGIC
+# MAGIC - `mean_radius`: 細胞核の平均半径
+# MAGIC - `mean_texture`: テクスチャの標準偏差
+# MAGIC - `mean_perimeter`: 細胞核の平均周囲長
+# MAGIC - `mean_area`: 細胞核の平均面積
+# MAGIC - その他26種類の測定値
+# MAGIC
+# MAGIC ### 処理の流れ
+# MAGIC
+# MAGIC 1. scikit-learnから乳がんデータセットを読み込み
+# MAGIC 2. 200名分のデータをサンプリング（元データは569行）
+# MAGIC 3. 各患者に一意のID（P000000形式）を付与
+# MAGIC 4. タイムスタンプを追加
+# MAGIC 5. Deltaテーブルに保存
+# MAGIC
+# MAGIC ### テーブル名
+# MAGIC
+# MAGIC `{CATALOG}.{SCHEMA}.patient_breast_cancer_features`
 
 # COMMAND ----------
 
@@ -630,7 +671,7 @@ from sklearn.datasets import load_breast_cancer
 # =========
 TABLE  = f"{CATALOG}.{SCHEMA}.patient_breast_cancer_features"
 
-N_PATIENTS = 1000   # 作りたい患者数（>569なら復元抽出が必要）
+N_PATIENTS = 200   # 作りたい患者数（>569なら復元抽出が必要）
 SEED = 42           # 再現性
 
 # =========
@@ -800,31 +841,17 @@ print("✅ written:", TABLE)
 # MAGIC %md
 # MAGIC ## まとめ
 # MAGIC
-# MAGIC このノートブックでは、以下のことを学びました：
+# MAGIC このノートブックでは、以下のことを実施しました：
 # MAGIC
+# MAGIC ### PDF処理とベクトル検索
 # MAGIC 1. ✓ PDFファイルからテキストを抽出する方法
 # MAGIC 2. ✓ 長いテキストを適切な長さに分割（チャンク化）する方法
 # MAGIC 3. ✓ データをDeltaテーブルに保存する方法
 # MAGIC 4. ✓ ベクトル検索インデックスを作成する方法
 # MAGIC 5. ✓ 実際に検索を実行する方法
 # MAGIC
-# MAGIC ### 次のステップ
+# MAGIC ### 患者データの準備
+# MAGIC 6. ✓ 乳がん患者の特徴量データテーブルを作成する方法
 # MAGIC
-# MAGIC - 自分のPDFファイルで試してみる
-# MAGIC - 検索クエリを変えて結果を確認する
-# MAGIC - 補足セクションの改善アイデアを実装してみる
-# MAGIC
-# MAGIC ### トラブルシューティング
-# MAGIC
-# MAGIC **エラーが出た場合**:
-# MAGIC 1. エラーメッセージをよく読む
-# MAGIC 2. どのセルでエラーが出たか確認する
-# MAGIC 3. 設定値（CATALOG、SCHEMA等）が正しいか確認する
-# MAGIC 4. PDFファイルが正しい場所にあるか確認する
-# MAGIC
-# MAGIC **質問がある場合**:
-# MAGIC - エラーメッセージ全文
-# MAGIC - エラーが出たセルの番号
-# MAGIC - 実行環境の情報
-# MAGIC
-# MAGIC を共有してください。
+# MAGIC これらを組み合わせることで、医療文書を検索しながら患者データに基づいた
+# MAGIC 治療提案を行うAIエージェントシステムの基盤が完成します。
