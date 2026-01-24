@@ -524,9 +524,9 @@ print("\n💡 詳細な評価結果はMLflow UIで確認してください")
 # MAGIC PyFunc（Python Function）は、MLflowの標準的なモデル形式です。
 # MAGIC 任意のPythonコードをMLflowモデルとしてパッケージ化できます。
 # MAGIC
-# MAGIC ### agent.pyファイルの登録
+# MAGIC ### simple_agent.pyファイルの登録
 # MAGIC
-# MAGIC `python_model="agent.py"` を指定することで、
+# MAGIC `python_model="simple_agent.py"` を指定することで、
 # MAGIC agent.pyファイルの内容がモデルとして登録されます。
 
 # COMMAND ----------
@@ -638,10 +638,6 @@ def predict_wrapper_from_model(query: str) -> str:
     
     # 最後のメッセージ（エージェントの回答）を返す
     return response[-1]["messages"][-1]['content']
-
-# COMMAND ----------
-
-predict_wrapper_from_model("こんにちは")
 
 # COMMAND ----------
 
