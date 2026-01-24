@@ -1,175 +1,119 @@
-# 医療アシスタントAIエージェント
+# 医療アシスタントAIエージェント ハンズオンラボ
 
-Databricks上で動作する、医療マニュアル検索と乳がんリスク予測機能を持つAIエージェントのハンズオン実装です。
+Databricks上で動作する医療AIエージェントの実装ハンズオン。ReACTの基礎から本番デプロイまでを段階的に学習します。
 
 ## 🎯 概要
 
-LangChain、Unity Catalog、Databricks Vector Searchを活用した実用的な医療AIエージェントです。RAG（検索拡張生成）と機械学習モデルを統合し、医療従事者や患者からの質問に対して的確な回答を提供します。
+LangGraph、Unity Catalog、Vector Searchを活用した実用的なAIエージェント。
 
 ### 主な機能
-
-- **医療マニュアル検索（RAG）**: ベクトル検索で最新のがん治療情報を提供
-- **乳がんリスク予測**: 機械学習モデルによる悪性/良性の判定
-- **Unity Catalog統合**: 患者データ取得と予測をツールとして統合
-- **自動評価**: MLflowによる品質評価とデプロイ
+- 医療マニュアル検索（RAG）
+- 乳がんリスク予測
+- Unity Catalog関数統合
+- MLflow自動評価
+- Model Servingデプロイ
 
 ## 🏗️ アーキテクチャ
 
 ```
-ユーザー
-  ↓
-医療アシスタントAIエージェント (LangGraph)
-  ├─→ Vector Search (医療マニュアル検索)
-  ├─→ UC関数 (患者データ取得)
-  └─→ Model Serving (乳がん予測)
+ユーザー → AIエージェント (LangGraph)
+              ├─→ Vector Search (医療マニュアル)
+              ├─→ UC関数: get_patient_data
+              └─→ UC関数: predict_cancer
 ```
 
 ## 📦 必要要件
 
-### Databricks環境
-- Unity Catalog有効化済み
-- Vector Search & Model Serving利用可能
-- DBR 14.3 LTS以上推奨
-
-### LLMエンドポイント
-- `databricks-gpt-oss-20b` または `databricks-llama-4-maverick`
-
-### 主要ライブラリ
-```
-databricks-langchain
-unitycatalog-ai[databricks]
-langchain / langgraph
-mlflow
-```
+- Unity Catalog、Vector Search、Model Serving有効化
+- DBR 14.3 LTS以上
+- LLMエンドポイント（databricks-llama-4-maverickなど）
 
 ## 🚀 セットアップ
 
-### 1. データの準備
+### 1. データ準備
 
-`data/` フォルダには以下のがん治療マニュアルPDFが含まれています：
+`data/` フォルダにPDFを配置：
+- 胃がん治療マニュアル.pdf
+- 食道がん治療マニュアル.pdf
+- 乳がん治療マニュアル.pdf
+- 前立腺がん治療マニュアル.pdf
 
-```
-data/
-├── 胃がん治療マニュアル.pdf
-├── 食道がん治療マニュアル.pdf
-├── 乳がん治療マニュアル.pdf
-└── 前立腺がん治療マニュアル.pdf
-```
+### 2. ノートブック実行（順番に）
 
-これらのPDFは自動的にチャンク分割され、ベクトルインデックス化されます。
-
-### 2. ノートブックの実行（順番に実行）
-
-#### **01.data_prep.py** (約10分)
-PDFからテキスト抽出、チャンク分割、Vector Searchインデックス作成、患者データ生成
-
-#### **02.tool_prep.py** (約5分)
-Unity Catalog関数の作成（`get_patient_data`, `predict_cancer`）
-
-#### **03.agent_develop.py** (約5分)
-エージェントの構築とテスト
-
-#### **04.agent_eval.py** (約15分)
-評価実行、MLflow登録、Model Servingデプロイ
+| # | ノートブック | 所要時間 | 目的 |
+|---|------------|---------|------|
+| 01 | **data_prep.py** | 10分 | PDFチャンク化、Vector Index作成、患者データ生成 |
+| 02 | **tool_prep.py** | 5分 | Unity Catalog関数作成（3つ） |
+| 03 | **simple_react_agent.py** | 15分 | ReACT動作原理を手動実行で理解 |
+| 04 | **agent_develop.py** | 15分 | LangGraphエージェント構築と評価 |
+| 05 | **agent_deploy.py** | 20分 | MLflow登録とModel Servingデプロイ |
 
 ## 📖 使い方
 
-### エージェントとの対話
-
+### ノートブック内
 ```python
 from simple_agent import AGENT
 
-# 医療マニュアル検索
 response = AGENT.invoke({
-    "messages": [{
-        "role": "user",
-        "content": "乳がんの治療法について教えてください"
-    }]
+    "messages": [{"role": "user", "content": "乳がんの治療法は？"}]
 })
-
-# 乳がんリスク予測
-response = AGENT.invoke({
-    "messages": [{
-        "role": "user",
-        "content": "P000123の患者は悪性の可能性はありますか？"
-    }]
-})
+print(response["messages"][-1].content)
 ```
 
-### REST API経由での利用
-
+### REST API（デプロイ後）
 ```python
 import requests
-
 response = requests.post(
-    "https://your-workspace.cloud.databricks.com/serving-endpoints/medical_agent/invocations",
+    f"https://{workspace_url}/serving-endpoints/{endpoint_name}/invocations",
     headers={"Authorization": f"Bearer {token}"},
-    json={"messages": [{"role": "user", "content": "質問内容"}]}
+    json={"messages": [{"role": "user", "content": "質問"}]}
 )
 ```
 
 ## 📁 プロジェクト構成
 
 ```
-medical-assistant-agent/
 ├── README.md
-├── data/                    # 医療マニュアルPDFフォルダ
-│   └── (4種類のがん治療マニュアル)
-├── 01.data_prep.py         # データ準備
-├── 02.tool_prep.py         # ツール作成
-├── 03.agent_develop.py     # エージェント開発
-├── 04.agent_eval.py        # 評価とデプロイ
-└── simple_agent.py         # エージェント実装
+├── data/                          # 医療マニュアルPDF
+├── 01.data_prep.py               # データ準備
+├── 02.tool_prep.py               # ツール作成
+├── 03.simple_react_agent.py      # ReACT理解
+├── 04.agent_develop.py           # エージェント開発・評価
+├── 05.agent_deploy.py            # 登録・デプロイ
+└── simple_agent.py               # エージェント実装
 ```
 
 ## 🛠️ 技術スタック
 
-| カテゴリ | 技術 |
-|---------|------|
-| AIフレームワーク | LangChain, LangGraph |
-| プラットフォーム | Databricks (Unity Catalog, Vector Search, Model Serving) |
-| ML/データ | scikit-learn, Delta Lake, MLflow |
-| 処理 | pdfplumber, pysbd, transformers |
-
-## 📊 データについて
-
-### 医療マニュアル
-- **内容**: 胃がん、食道がん、乳がん、前立腺がんの治療法
-- **形式**: PDF（日本語）
-- **処理**: 800トークンチャンク、160トークンオーバーラップ
-
-### 乳がんデータセット
-- **出典**: scikit-learn Wisconsin Breast Cancer Dataset
-- **サンプル数**: 1,000件
-- **特徴量**: 30次元（細胞核の特徴）
+- **AI**: LangChain, LangGraph
+- **Platform**: Databricks (Unity Catalog, Vector Search, Model Serving)
+- **ML/Data**: scikit-learn, MLflow, Delta Lake
+- **Processing**: pdfplumber, pysbd, transformers
 
 ## 🔧 カスタマイズ
 
-### システムプロンプトの変更
-`simple_agent.py`の`SYSTEM_PROMPT`を編集
-
-### ツールの追加
-`02.tool_prep.py`で新しいUnity Catalog関数を作成し、`UC_TOOL_NAMES`に追加
-
-### 評価データの拡張
-`04.agent_eval.py`の`eval_data`リストに新しいテストケースを追加
+- **システムプロンプト**: `simple_agent.py`の`SYSTEM_PROMPT`を編集
+- **ツール追加**: `02.tool_prep.py`で関数作成 → `simple_agent.py`に追加
+- **評価データ追加**: `04.agent_develop.py`の`eval_data`に追加
 
 ## 🐛 トラブルシューティング
 
 | 問題 | 解決方法 |
-|------|---------|
-| Vector Searchインデックスエラー | エンドポイントの作成と権限を確認 |
-| Unity Catalog関数が見つからない | カタログ・スキーマの作成を確認 |
-| エージェントの応答が遅い | `num_results`を減らす、エンドポイントをスケール |
+|------|----------|
+| Vector Indexエラー | エンドポイント作成を確認 |
+| UC関数が見つからない | カタログ・スキーマ作成を確認 |
+| 応答が遅い | `num_results`を減らす |
 
-## 📝 ライセンス
+## 📚 参考リソース
 
-MIT License
+- [Databricks エージェント評価](https://docs.databricks.com/aws/ja/generative-ai/agent-evaluation)
+- [MLflow Models from Code](https://mlflow.org/docs/latest/models.html#models-from-code)
+- [LangGraph Docs](https://langchain-ai.github.io/langgraph/)
 
 ## ⚠️ 注意事項
 
-このプロジェクトは教育目的のデモンストレーションです。実際の医療現場での使用には、適切な医療監修と法規制への準拠が必要です。
+教育目的のデモです。実際の医療現場での使用には適切な医療監修と法規制への準拠が必要です。
 
 ---
 
-**質問・提案**: GitHubのIssueをご利用ください
+**License**: MIT | **Made with ❤️ on Databricks**
