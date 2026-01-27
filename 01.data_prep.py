@@ -191,7 +191,7 @@ def extract_pages_text(pdf_path: str) -> List[Tuple[int, str]]:
 from transformers import AutoTokenizer
 import pysbd
 
-tokenizer = AutoTokenizer.from_pretrained("Alibaba-NLP/gte-large-en-v1.5")
+tokenizer = AutoTokenizer.from_pretrained("Alibaba-NLP/gte-large-en-v1.5", trust_remote_code=True)
 
 def chunk_text(text: str,
                max_tokens: int = 800,
